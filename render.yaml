@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: voxel-forge
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    autoDeployTrigger: off
+    healthCheckPath: /
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-5.6-luna
+      - key: MAX_UPLOAD_MB
+        value: "8"
