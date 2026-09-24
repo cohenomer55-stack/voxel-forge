@@ -1,21 +1,222 @@
-const $ = (id)=>document.getElementById(id);
-const desc=$('description'), imgInput=$('image'), drop=$('dropZone'), thumb=$('previewThumb'), imgPrev=$('imagePreview'), removeImage=$('removeImage');
-const generate=$('generateBtn'), status=$('status'), mapPreview=$('mapPreview'), empty=$('emptyState'), dlBar=$('downloadBar'), dl=$('downloadLitematic'), png=$('openPng'), meta=$('resultMeta'), planDetails=$('planDetails'), planJson=$('planJson');
+const $ = (id) => document.getElementById(id);
 
-imgInput.onchange=()=>{const f=imgInput.files?.[0];if(!f)return;const r=new FileReader();r.onload=()=>{thumb.src=r.result;imgPrev.hidden=false;drop.style.display='none'};r.readAsDataURL(f)};
-removeImage.onclick=()=>{imgInput.value='';imgPrev.hidden=true;drop.style.display='flex'};
-drop.ondragover=e=>{e.preventDefault();drop.style.borderColor='#69d13a'};
-drop.ondragleave=()=>drop.style.borderColor='';
-drop.ondrop=e=>{e.preventDefault();drop.style.borderColor='';if(!e.dataTransfer.files?.[0])return;imgInput.files=e.dataTransfer.files;imgInput.dispatchEvent(new Event('change'))};
+const desc = $("description");
+const imgInput = $("image");
+const drop = $("drop");
+const thumb = $("thumb");
+const thumbWrap = $("thumbWrap");
+const removeBtn = $("remove");
 
-generate.onclick=async()=>{
- const text=desc.value.trim();
- if(!text){setStatus('נא לכתוב תיאור של הבנייה.','err');desc.focus();return}
- const fd=new FormData();fd.append('description',text);if(imgInput.files?.[0])fd.append('image',imgInput.files[0]);
- generate.disabled=true;generate.innerHTML='יוצר את המבנה… <span>◌</span>';setStatus('בונה את המפה מקומית — ללא OpenAI API וללא תשלום על AI.');
- try{const r=await fetch('/api/build',{method:'POST',body:fd});const data=await r.json();if(!r.ok)throw new Error(data.detail||'שגיאה לא ידועה');showResult(data);setStatus(`נוצר: ${data.name} • ${data.stats.blocks.toLocaleString()} בלוקים • ${data.stats.palette_size} מצבי בלוק`,'ok')}
- catch(e){setStatus(e.message,'err')}finally{generate.disabled=false;generate.innerHTML='צור מבנה <span>→</span>'}
-};
-function setStatus(t,k=''){status.hidden=false;status.className='status '+k;status.textContent=t}
-function showResult(data){meta.textContent=`${data.name} • ${data.size.x}×${data.size.y}×${data.size.z}`;mapPreview.src=data.preview+'?t='+Date.now();mapPreview.hidden=false;empty.hidden=true;dlBar.hidden=false;dl.href=data.litematic;dl.download=(data.name||'build')+'.litematic';png.href=data.preview;planDetails.hidden=false;planJson.textContent=JSON.stringify(data.plan,null,2);document.querySelector('.result-panel').scrollIntoView({behavior:'smooth',block:'start'})}
-const grid=$('miniGrid');if(grid){for(let i=0;i<108;i++){const s=document.createElement('span');grid.appendChild(s)}}
+const generate = $("go");
+const status = $("status");
+const mapPreview = $("map");
+const empty = $("empty");
+const actions = $("actions");
+const dl = $("litematic");
+const png = $("png");
+const meta = $("meta");
+const voxels = $("voxels");
+
+function setStatus(text, kind = "") {
+  if (!status) return;
+  status.hidden = false;
+  status.className = "status " + kind;
+  status.textContent = text;
+}
+
+if (imgInput) {
+  imgInput.addEventListener("change", () => {
+    const file = imgInput.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      if (thumb) {
+        thumb.src = reader.result;
+      }
+
+      if (thumbWrap) {
+        thumbWrap.hidden = false;
+      }
+
+      if (drop) {
+        drop.style.display = "none";
+      }
+    };
+
+    reader.readAsDataURL(file);
+  });
+}
+
+if (removeBtn) {
+  removeBtn.addEventListener("click", (event) => {
+    event.preventDefault();
+
+    if (imgInput) {
+      imgInput.value = "";
+    }
+
+    if (thumb) {
+      thumb.src = "";
+    }
+
+    if (thumbWrap) {
+      thumbWrap.hidden = true;
+    }
+
+    if (drop) {
+      drop.style.display = "";
+    }
+  });
+}
+
+if (drop && imgInput) {
+  drop.addEventListener("dragover", (event) => {
+    event.preventDefault();
+    drop.style.borderColor = "#69d13a";
+  });
+
+  drop.addEventListener("dragleave", () => {
+    drop.style.borderColor = "";
+  });
+
+  drop.addEventListener("drop", (event) => {
+    event.preventDefault();
+    drop.style.borderColor = "";
+
+    const file = event.dataTransfer?.files?.[0];
+    if (!file) return;
+
+    try {
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      imgInput.files = dt.files;
+      imgInput.dispatchEvent(new Event("change"));
+    } catch (error) {
+      console.error(error);
+    }
+  });
+}
+
+if (generate) {
+  generate.addEventListener("click", async (event) => {
+    event.preventDefault();
+
+    const text = desc?.value.trim() || "";
+
+    if (!text) {
+      setStatus("נא לכתוב תיאור של הבנייה.", "err");
+      desc?.focus();
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("description", text);
+
+    const imageFile = imgInput?.files?.[0];
+    if (imageFile) {
+      formData.append("image", imageFile);
+    }
+
+    generate.disabled = true;
+    generate.innerHTML = 'יוצר את המבנה… <span>◌</span>';
+
+    setStatus("בונה את המפה מקומית — ללא OpenAI וללא תשלום על AI.");
+
+    try {
+      const response = await fetch("/api/build", {
+        method: "POST",
+        body: formData
+      });
+
+      const contentType =
+        response.headers.get("content-type") || "";
+
+      let data;
+
+      if (contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const raw = await response.text();
+        throw new Error(
+          raw || `שגיאת שרת (${response.status})`
+        );
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          data?.detail || "שגיאה ביצירת המבנה."
+        );
+      }
+
+      showResult(data);
+
+      const blocks = Number(
+        data?.stats?.blocks || 0
+      ).toLocaleString();
+
+      setStatus(
+        `נוצר: ${data.name} • ${blocks} בלוקים`,
+        "ok"
+      );
+    } catch (error) {
+      console.error(error);
+
+      setStatus(
+        error?.message || "שגיאה לא ידועה.",
+        "err"
+      );
+    } finally {
+      generate.disabled = false;
+      generate.innerHTML =
+        'צור את המבנה <span>→</span>';
+    }
+  });
+}
+
+function showResult(data) {
+  if (meta) {
+    meta.textContent =
+      `${data.name} • ${data.size.x}×${data.size.y}×${data.size.z}`;
+  }
+
+  if (mapPreview) {
+    mapPreview.src =
+      data.preview + "?t=" + Date.now();
+
+    mapPreview.hidden = false;
+  }
+
+  if (empty) {
+    empty.hidden = true;
+  }
+
+  if (actions) {
+    actions.hidden = false;
+  }
+
+  if (dl) {
+    dl.href = data.litematic;
+    dl.download =
+      (data.name || "build") + ".litematic";
+  }
+
+  if (png) {
+    png.href = data.preview;
+  }
+
+  document
+    .querySelector(".result")
+    ?.scrollIntoView({
+      behavior: "smooth",
+      block: "start"
+    });
+}
+
+if (voxels) {
+  for (let i = 0; i < 108; i++) {
+    const cell = document.createElement("span");
+    voxels.appendChild(cell);
+  }
+}
