@@ -172,8 +172,45 @@ def to_litematic(w:World,path:Path,name:str):
         bp+=bits
     longs=[(x & ((1<<64)-1))-(1<<64) if (x & (1<<63)) else (x & ((1<<64)-1)) for x in longs]
     total=w.sx*w.sy*w.sz
-    region={'Position':IntArray([0,0,0]),'Size':IntArray([w.sx,w.sy,w.sz]),'BlockStatePalette':palette,'BlockStates':LongArray(longs),'TileEntities':w.tiles,'Entities':[],'PendingBlockTicks':[],'PendingFluidTicks':[]}
-    root={'Version':Int(6),'SubVersion':Int(1),'MinecraftDataVersion':Int(4671),'Metadata':{'Name':name,'Author':'VoxelForge','Description':'Generated from natural language.','RegionCount':Int(1),'TotalVolume':Long(total),'TotalBlocks':Long(len(w.blocks)),'Time':Long(0),'EnclosingSize':IntArray([w.sx,w.sy,w.sz]),'ModifiedSinceReplace':Byte(0)},'Regions':{'region':region}}
+    def triple(x, y, z):
+    return {
+        'x': Int(x),
+        'y': Int(y),
+        'z': Int(z)
+    }
+
+region = {
+    'Position': triple(0, 0, 0),
+    'Size': triple(w.sx, w.sy, w.sz),
+    'BlockStatePalette': palette,
+    'BlockStates': LongArray(longs),
+    'TileEntities': w.tiles,
+    'Entities': [],
+    'PendingBlockTicks': [],
+    'PendingFluidTicks': [],
+}
+
+root = {
+    'Version': Int(6),
+    'SubVersion': Int(1),
+    'MinecraftDataVersion': Int(3953),
+    'Metadata': {
+        'Name': name,
+        'Author': 'VoxelForge',
+        'Description': 'Generated without external AI APIs.',
+        'RegionCount': Int(1),
+        'TotalVolume': Int(total),
+        'TotalBlocks': Int(len(w.blocks)),
+        'TimeCreated': Long(0),
+        'TimeModified': Long(0),
+        'EnclosingSize': triple(w.sx, w.sy, w.sz),
+        'ModifiedSinceReplace': Byte(0),
+    },
+    'Regions': {
+        'region': region
+    },
+}
+    ifiedSinceReplace':Byte(0)},'Regions':{'region':region}}
     dump_gzip(root,path,'Litematic')
     return {'blocks':len(w.blocks),'palette_size':len(palette),'volume':total,'bits_per_entry':bits}
 
